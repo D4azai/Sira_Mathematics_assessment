@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.env*
+!.env.example
+.vercel/
+test-results/
+playwright-report/
+tools/node/
+.student-invitation.local.txt
+.release-check.local.json
+.release-check-cloud.local.json

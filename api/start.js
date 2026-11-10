@@ -1,14 +1,17 @@
 import { timingSafeEqual } from 'node:crypto';
-import { makeSession,json } from '../lib/session.js';
-
-export default function handler(req,res) {
-  if (req.method !== 'POST') return json(res,405,{error:'Method not allowed'});
-  const expected = process.env.ASSESSMENT_ACCESS_CODE;
-  if (!expected || !process.env.ASSESSMENT_SECRET) return json(res,503,{error:'Assessment not yet configured'});
-  const { accessCode, learnerCode } = req.body ?? {};
-  if (typeof accessCode !== 'string' || accessCode.length > 100 || !/^[A-Za-z0-9_-]{2,32}$/.test(learnerCode || '')) return json(res,400,{error:'Enter a valid assessment code and learner reference'});
-  const a = Buffer.from(accessCode), b = Buffer.from(expected);
-  if (a.length !== b.length || !timingSafeEqual(a,b)) return json(res,403,{error:'Incorrect assessment access code'});
-  try { return json(res,200,makeSession(learnerCode)); }
-  catch { return json(res,503,{error:'Assessment temporarily unavailable'}); }
-}
+import { makeSession, json, validLearnerName } from '../lib/session.js';
+import { requireReady } from '../lib/config.js';
+import { endpoint, fail, rateLimit } from '../lib/http.js';
+import { createAttempt } from '../lib/store.js';
+export default endpoint('POST', async (req, res) => {
+  await requireReady();
+  await rateLimit(req, 'start', 6);
+  const { accessCode, learnerCode: enteredName } = req.body;
+  const learnerCode = typeof enteredName === 'string' ? enteredName.trim() : enteredName;
+  if (typeof accessCode !== 'string' || accessCode.length > 100 || !validLearnerName(learnerCode)) fail(400, 'Enter your full name and assessment access code');
+  const a = Buffer.from(accessCode), b = Buffer.from(process.env.ASSESSMENT_ACCESS_CODE);
+  if (a.length !== b.length || !timingSafeEqual(a, b)) fail(403, 'Incorrect assessment access code');
+  const session = makeSession(learnerCode);
+  await createAttempt(session);
+  return json(res, 200, { ...session, serverNow: Date.now(), revision: 0 });
+});

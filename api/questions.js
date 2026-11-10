@@ -1,8 +1,11 @@
 import { QUESTIONS } from '../lib/questions.js';
-import { json } from '../lib/session.js';
-
-export default function handler(req,res) {
-  if (req.method !== 'GET') return json(res,405,{error:'Method not allowed'});
-  const questions = QUESTIONS.map(({id,topic,skill,level,prompt,options}) => ({id,topic,skill,level,prompt,options}));
-  return json(res,200,{questions,durationSeconds:3600,version:1});
-}
+import { json, verifySession, VERSION } from '../lib/session.js';
+import { getAttempt, publicAttempt } from '../lib/store.js';
+import { endpoint, rateLimit } from '../lib/http.js';
+export default endpoint('GET', async (req, res) => {
+  const session = verifySession(req.headers.authorization?.replace(/^Bearer /, ''));
+  await rateLimit(req, 'read', 120);
+  const attempt = await getAttempt(session.id);
+  const questions = QUESTIONS.map(({ id, topic, skill, level, prompt, options }) => ({ id, topic, skill, level, prompt, options }));
+  return json(res, 200, { questions, version: VERSION, serverNow: Date.now(), attempt: publicAttempt(attempt) });
+});

@@ -1,9 +1,7 @@
-import { json } from '../lib/session.js';
-export default function handler(req,res) {
-  if(req.method !== 'GET') return json(res,405,{error:'Method not allowed'});
-  return json(res,200,{
-    assessmentReady: Boolean(process.env.ASSESSMENT_SECRET && process.env.ASSESSMENT_ACCESS_CODE),
-    emailReady: Boolean(process.env.RESEND_API_KEY && process.env.RESEND_FROM_EMAIL),
-    version:1
-  });
-}
+import { json, VERSION } from '../lib/session.js';
+import { runtimeReadiness } from '../lib/config.js';
+import { endpoint } from '../lib/http.js';
+export default endpoint('GET', async (req, res) => {
+  const flags = await runtimeReadiness();
+  return json(res, 200, { ...flags, ready: Object.values(flags).every(Boolean), version: VERSION });
+});

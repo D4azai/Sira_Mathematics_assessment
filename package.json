@@ -1,13 +1,17 @@
 {
-  "name": "sira-mathematics-assessment",
-  "version": "1.0.0",
-  "private": true,
-  "type": "module",
-  "description": "SIRA 60-minute mathematics placement readiness diagnostic",
-  "engines": {
-    "node": ">=20"
-  },
-  "scripts": {
-    "test": "node --test"
-  }
+    "name":  "sira-mathematics-assessment",
+    "version":  "1.0.0",
+    "private":  true,
+    "type":  "module",
+    "description":  "SIRA 60-minute mathematics placement readiness diagnostic",
+    "engines":  {
+                    "node":  "22.x"
+                },
+    "scripts":  {
+                    "test":  "node scripts/build.mjs && node --test tests/*.test.js",
+                    "test:browser": "node scripts/build.mjs && node scripts/browser-check.mjs",
+                    "check:live": "node scripts/check-live.mjs",
+                    "test:redis": "node --env-file=.env.local scripts/check-redis.mjs",
+                    "build":  "node scripts/build.mjs"
+                }
 }

@@ -5,14 +5,14 @@ import { existsSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import { resolve } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
-import { configure, serviceDouble } from '../tests/support.mjs';
+import { configure, serviceDouble, invoke } from '../tests/support.mjs';
 import { key } from '../lib/store.js';
 const chromePath = process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Application/chrome.exe';
 if (!existsSync(chromePath)) throw Error('Set CHROME_PATH to a Chromium or Chrome executable');
 configure();
 const double = serviceDouble(), originalFetch = globalThis.fetch;
 globalThis.fetch = (url, options) => String(url).startsWith('http://127.0.0.1:') ? originalFetch(url, options) : double.fetch(url, options);
-const routes = Object.fromEntries(await Promise.all(['start', 'questions', 'save', 'submit', 'status', 'retry'].map(async name => [name, (await import(`../api/${name}.js`)).default])));
+const routes = Object.fromEntries(await Promise.all(['start', 'questions', 'save', 'submit', 'status', 'retry', 'attempt-control'].map(async name => [name, (await import(`../api/${name}.js`)).default])));
 const config = JSON.parse(await readFile('vercel.json', 'utf8'));
 const server = createServer(async (req, res) => {
   for (const { key, value } of config.headers[0].headers) res.setHeader(key, value);
@@ -111,8 +111,23 @@ try {
   await until("!document.querySelector('#finishSummary').hidden");
   assert.equal(await evaluate("document.querySelector('#resultScore').textContent"), '0 / 60');
   assert.ok(await evaluate("document.querySelector('#sendNotice').textContent.includes('Time expired')"));
+  // A teacher-cancelled accidental session must return to the start screen.
+  await evaluate('localStorage.clear()'); await reload();
+  await evaluate("document.querySelector('#learnerCode').value='SESSION_RESET_CHECK'; document.querySelector('#accessCode').value='test-private-code'");
+  await click('#start'); await until("!document.querySelector('#exam').hidden");
+  const resetRecord = [...double.values].filter(([key]) => key.startsWith('sira:attempt:') && !key.endsWith(':lock')).map(([, raw]) => JSON.parse(raw)).find(record => record.learnerCode === 'SESSION_RESET_CHECK');
+  const sendsBeforeReset = double.sends.length;
+  const cancelled = await invoke(routes['attempt-control'], { action: 'cancel', studentName: 'SESSION_RESET_CHECK', attemptId: resetRecord.id }, { headers: { 'content-type': 'application/json', authorization: `Bearer ${process.env.CRON_SECRET}` } });
+  assert.equal(cancelled.data.cancelled, true);
+  await reload(); await until("!document.querySelector('#intro').hidden && document.querySelector('#message').textContent.includes('reset')");
+  assert.equal(await evaluate("document.querySelector('#clock').textContent"), '60:00');
+  assert.equal(await evaluate("localStorage.getItem('sira-assessment-v2')"), null);
+  assert.equal(double.sends.length, sendsBeforeReset);
+  await evaluate("document.querySelector('#accessCode').value='test-private-code'");
+  await click('#start'); await until("!document.querySelector('#exam').hidden");
+  assert.ok(await evaluate("document.querySelector('#clock').textContent.startsWith('60:') || document.querySelector('#clock').textContent.startsWith('59:')"));
   assert.deepEqual(errors, []);
-  console.log('PASS: real Chrome desktop/mobile, invalid code, autosave, confidence, refresh, offline recovery, confirmation cancel, email failure/retry, duplicate refresh, expiry and static-source denial. External storage/email are test doubles.');
+  console.log('PASS: Chrome desktop/mobile, keyboard selection, save/recovery, offline retry, grading, expiry, teacher reset and fresh timer, and static-source denial. External storage/email are test doubles.');
 } finally {
   if (ws) ws.close(); chrome.kill(); server.closeAllConnections(); await new Promise(r => server.close(r));
 }

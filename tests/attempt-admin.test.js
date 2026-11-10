@@ -1,0 +1,25 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { configure, serviceDouble, invoke } from './support.mjs';
+import { makeSession } from '../lib/session.js';
+import { createAttempt, getAttempt, key } from '../lib/store.js';
+import handler from '../api/attempt-control.js';
+import retry from '../api/retry.js';
+test('administrator reset removes only the selected active attempt and prevents its report', async t => {
+  configure(); const double = serviceDouble(); t.mock.method(globalThis, 'fetch', double.fetch);
+  const first = makeSession('Sample Student'), other = makeSession('Other Student');
+  await createAttempt(first); await createAttempt(other);
+  assert.equal((await invoke(handler, { action: 'list', studentName: 'Sample Student' })).status, 401);
+  const options = { headers: { 'content-type': 'application/json', authorization: `Bearer ${process.env.CRON_SECRET}` } };
+  const found = await invoke(handler, { action: 'list', studentName: 'sample student' }, options);
+  assert.equal(found.data.attempts.length, 1); assert.equal(found.data.attempts[0].id, first.id);
+  assert.equal((await invoke(handler, { action: 'cancel', studentName: 'Other Student', attemptId: first.id }, options)).status, 409);
+  double.values.set(`${key(first.id)}:lock`, 'sending');
+  assert.equal((await invoke(handler, { action: 'cancel', studentName: 'Sample Student', attemptId: first.id }, options)).status, 409);
+  double.values.delete(`${key(first.id)}:lock`);
+  assert.equal((await invoke(handler, { action: 'cancel', studentName: 'Sample Student', attemptId: first.id }, options)).data.cancelled, true);
+  await assert.rejects(getAttempt(first.id), { status: 410 }); assert.ok(await getAttempt(other.id));
+  assert.ok(!double.queue.has(first.id));
+  await invoke(retry, null, { method: 'GET', headers: options.headers });
+  assert.equal(double.sends.length, 0);
+});

@@ -6,7 +6,7 @@ for (const path of ['/lib/questions.js', '/lib/session.js', '/package.json', '/R
 }
 const questions = await fetch(new URL('/api/questions', origin));
 if (questions.status !== 401) throw Error(`Unauthenticated questions returned ${questions.status}, expected 401`);
-for (const path of ['/api/email-test', '/api/storage-check', '/api/setup-scheduler']) {
+for (const path of ['/api/email-test', '/api/storage-check', '/api/setup-scheduler', '/api/attempt-control']) {
   const response = await fetch(new URL(path, origin), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
   if (response.status !== 401) throw Error(`Unauthenticated ${path} returned ${response.status}, expected 401`);
 }

@@ -1,4 +1,5 @@
 import { UPDATE_SCRIPT } from '../lib/store.js';
+import { CANCEL_SCRIPT } from '../lib/attempt-admin.js';
 // Transport double for deterministic failures; does not claim to execute Redis Lua.
 export function serviceDouble() {
   const values = new Map(), queue = new Map(), counts = new Map();
@@ -12,9 +13,18 @@ export function serviceDouble() {
     if (op === 'TTL') return values.has(k) ? 60 : -2;
     if (op === 'ZADD') { queue.set(args[1], Number(args[0])); return 1; }
     if (op === 'ZREM') return Number(queue.delete(args[0]));
+    if (op === 'ZRANGE') return [...queue.keys()].slice(Number(args[0]), Number(args[1]) + 1);
     if (op === 'ZRANGEBYSCORE') return [...queue].filter(([, due]) => due <= Number(args[1])).slice(0, 10).map(([id]) => id);
     if (op === 'EVAL') {
       const n = Number(args[0]), keys = args.slice(1, n + 1), argv = args.slice(n + 1);
+      if (k === CANCEL_SCRIPT) {
+        if (values.has(keys[1])) return 'busy';
+        const raw = values.get(keys[0]); if (!raw) { queue.delete(argv[1]); return 'missing'; }
+        const r = JSON.parse(raw);
+        if (r.learnerCode !== argv[0]) return 'mismatch';
+        if (r.state !== 'active') return 'not-active';
+        values.delete(keys[0]); queue.delete(argv[1]); return 'cancelled';
+      }
       if (k.includes("redis.call('INCR'")) { const count = (counts.get(keys[0]) || 0) + 1; counts.set(keys[0], count); return count; }
       if (k === UPDATE_SCRIPT) {
         const raw = values.get(keys[0]); if (!raw) return 'missing';

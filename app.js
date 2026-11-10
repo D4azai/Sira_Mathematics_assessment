@@ -2,7 +2,17 @@
 const $ = id => document.getElementById(id);
 const STORAGE = 'sira-assessment-v2';
 let questions = [], busy = false, syncing = null, saveTimer, offset = 0, warning = 0;
-let s = { token: null, answers: [], confidence: [], flags: [], index: 0, revision: 0, dirty: false, frozen: false, sent: false };
+const emptyState = () => ({ token: null, answers: [], confidence: [], flags: [], index: 0, revision: 0, dirty: false, frozen: false, sent: false });
+let s = emptyState();
+function clearUnavailableAttempt() {
+  const studentName = s.learnerCode || '';
+  try { localStorage.removeItem(STORAGE); } catch { /* Reset still works for this page. */ }
+  s = emptyState(); offset = 0; warning = 0; clearTimeout(saveTimer);
+  page('intro'); clock(); $('learnerCode').value = studentName; $('accessCode').value = '';
+  $('start').onclick = start; $('start').disabled = false; $('start').textContent = 'Start the 60-minute assessment →';
+  message('Your previous attempt was reset or is no longer available. Enter your details to begin a fresh 60-minute assessment.');
+  $('message').className = 'info';
+}
 function persist() {
   try { localStorage.setItem(STORAGE, JSON.stringify(s)); }
   catch { $('syncStatus').textContent = 'Device storage unavailable. Keep this page open and stay online.'; }
@@ -38,6 +48,7 @@ function change(fn) {
   clearTimeout(saveTimer); saveTimer = setTimeout(() => sync().catch(syncError), 350);
 }
 function syncError(error) {
+  if (error.status === 410) { clearUnavailableAttempt(); return; }
   $('syncStatus').textContent = error.status === 409 ? error.message : 'Not synced. Responses remain on this device. Reconnect before the deadline.';
   if (error.status === 409) { s.frozen = true; persist(); render(); }
 }
@@ -129,6 +140,7 @@ async function submit() {
     if (result.pending) throw Error('Submission is processing. Check confirmation shortly.');
     s.sent = true; s.result = result; persist(); success();
   } catch (e) {
+    if (e.status === 410) { clearUnavailableAttempt(); return; }
     $('sendNotice').textContent = 'Email acceptance has not been confirmed.';
     $('sendError').textContent = `${e.message} Keep this page or save a backup. After the deadline, only responses already synced to the server are graded.`;
     $('sendError').hidden = false; $('retry').hidden = false; $('backup').hidden = false;
@@ -151,6 +163,7 @@ async function init() {
   if (s.sent && s.result) { success(); return; }
   try { await load(); if (s.sent) success(); else if (s.frozen) submit(); else { page('exam'); render(); clock(); if (s.dirty) sync().catch(syncError); } }
   catch (e) {
+    if (e.status === 410) { clearUnavailableAttempt(); return; }
     page('results'); $('sendNotice').textContent = 'Saved attempt found. Reconnect to recover it.';
     $('sendError').textContent = e.message; $('sendError').hidden = false; $('retry').hidden = false; $('backup').hidden = false;
     $('retry').onclick = async () => { $('retry').onclick = submit; await init(); };

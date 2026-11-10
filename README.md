@@ -104,6 +104,8 @@ node --env-file=.env.local scripts/delete-attempt.mjs ATTEMPT_UUID
 
 The utility deletes the attempt and queue entry, refuses an in-flight delivery, and never prints credentials. Delete provider/Outlook copies separately; storage deletion cannot recall sent mail. No public results listing, instructor dashboard or public delete endpoint exists. Inspect `sira:pending` and Vercel retry failure logs to detect service outages or stalled attempts. A bearer token is a credential: never log or share it.
 
+For an instructor-authorised accidental-start reset, use `node --env-file=.env.release.local scripts/manage-attempt.mjs list "Student Name"`, review the matching active attempt, then run `scripts/manage-attempt.mjs cancel "Student Name" ATTEMPT_UUID` with the same Node/env-file prefix. The protected administrative endpoint requires the cron secret, checks the student name and exact attempt ID, refuses a submission in progress, and removes only the selected active attempt plus its queued report. Refreshing the affected browser clears its obsolete local session and returns to the start screen; it does not start a new timer automatically.
+
 ## Provider references
 
 - [Upstash Redis REST API](https://upstash.com/docs/redis/features/restapi)

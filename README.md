@@ -64,6 +64,17 @@ npm run test:redis
 npm run check:live -- https://your-deployment-url
 ```
 
+For an authorised final production check, use synthetic data only:
+
+```sh
+node --env-file=.env.release.local scripts/check-assessment-live.mjs --fresh
+node --env-file=.env.release.local scripts/check-expiry-live.mjs --queue
+# After the next scheduled QStash invocation (normally within two minutes):
+node --env-file=.env.release.local scripts/check-expiry-live.mjs
+```
+
+The fresh submission answers 40 questions correctly and leaves 20 unanswered, verifies recovery and stale-revision rejection, and checks duplicate receipts. The expiry check queues a fixed synthetic expired attempt for the actual cloud worker; its separate report should score 0/60. Both send only to the instructor. The expiry fixture reuses its pointer for one hour to prevent accidental repeated reports. These administrative actions require the private cron secret; they cannot create or inspect an arbitrary student's record.
+
 `test:browser` requires Chrome/Chromium; set `CHROME_PATH` outside Windows. It launches headless Chrome with a disposable profile under ignored `test-results/`. Screenshots: `test-results/desktop.png`, `test-results/mobile.png`. Core and browser tests use synthetic service doubles, not a real Redis server or an actual email provider. They verify handler behavior, not Redis Lua execution on Upstash or inbox delivery. `test:redis` separately requires approved test Redis credentials in `.env.local`; it executes the real Lua script on isolated temporary keys, checks TTL/revisions/expiry, cleans up, and never queues or emails a result. It has not been run without those credentials. The live check expects private paths 404, unauthenticated questions 401 and `ready: true`; deployment protection login redirects are a separate failure to investigate.
 
 Before student release, perform a tutor-only attempt on the deployed version:

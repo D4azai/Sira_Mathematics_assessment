@@ -72,6 +72,12 @@ try {
   await click('#start'); await until("document.querySelector('#message').textContent.includes('Incorrect')");
   await evaluate("document.querySelector('#accessCode').value='test-private-code'"); await click('#start'); await until("!document.querySelector('#exam').hidden");
   await click('#options button:nth-child(2)'); await click('[data-c="sure"]');
+  await evaluate("document.querySelector('#options button:first-child').focus()");
+  await cdp('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, text: '\r' });
+  await cdp('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 });
+  await until("document.querySelector('#options button:first-child').getAttribute('aria-pressed') === 'true'");
+  assert.ok(await evaluate("document.activeElement === document.querySelector('#options button:first-child')"), 'Selecting an answer must preserve keyboard focus');
+  await click('#options button:nth-child(2)');
   await until("document.querySelector('#syncStatus').textContent.includes('synced')");
   await reload(); await until("!document.querySelector('#exam').hidden && document.querySelector('#options button:nth-child(2)').getAttribute('aria-pressed')==='true'");
   assert.equal(await evaluate("document.querySelector('[data-c=sure]').getAttribute('aria-pressed')"), 'true');

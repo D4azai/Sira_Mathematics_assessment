@@ -58,6 +58,7 @@ async function sync() {
   try { await syncing; } finally { syncing = null; }
 }
 function render(focus = false) {
+  const focusedOption = [...$('options').children].indexOf(document.activeElement);
   const q = questions[s.index]; if (!q) return;
   $('qNum').textContent = `QUESTION ${s.index + 1} OF 60`;
   $('qTopic').textContent = `${q.topic} / ${q.level}`;
@@ -89,6 +90,7 @@ function render(focus = false) {
   });
   $('sideCount').textContent = `${answered()}/60 answered`;
   $('sideFlag').textContent = `${s.flags.filter(Boolean).length} flagged`;
+  if (!focus && focusedOption >= 0) $('options').children[focusedOption]?.focus({ preventScroll: true });
 }
 async function load() {
   const data = await request('/api/questions'); questions = data.questions;

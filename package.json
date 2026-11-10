@@ -1,0 +1,13 @@
+{
+  "name": "sira-mathematics-assessment",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "SIRA 60-minute mathematics placement readiness diagnostic",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "node --test"
+  }
+}
